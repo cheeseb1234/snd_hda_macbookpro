@@ -7,7 +7,9 @@ controller** — it is *not* a USB adapter, so `btusb` never binds to it.
 |---|---|
 | Controller | Broadcom BCM4350C0 |
 | Transport | UART (`hci_uart` / `hci_uart_bcm` / `btbcm`) |
-| ACPI device | `BCM2E7C` / `BLTH` |
+| ACPI device | `serial0-0` (UART node in kernel messages) |
+| ACPI IDs / wake entries | `BCM2E7C` / `BLTH` (see [suspend.md](suspend.md)) |
+| Observed address | `8C:85:90:99:F4:5B` (controller during testing) |
 | Firmware | **built-in ROM** (do **not** install external HCD) |
 | Identifies as | `BCM4350C0 UART 37.4 MHz Gamay USI UHE` |
 | Version string | `BCM (003.001.134) build 1532` |
@@ -31,14 +33,47 @@ Bluetooth: hci0: BCM: 'brcm/BCM.hcd'
 
 ### Non-fatal warnings — do not chase these
 
-- **`failed to write update baudrate (-16)`** — the -16 baudrate warning is
-  **non-fatal on this machine**.  The controller works fine with the
-  default UART baudrate.
+- **`failed to write update baudrate (-16)` / `Failed to set baudrate`** —
+  **non-fatal on this machine** *when chip identification continues and
+  `hci0` appears* afterwards.  The controller works fine with the default
+  UART baudrate.
 - **`firmware Patch file not found ... brcm/BCM.hcd`** — **non-fatal**.
   The controller runs from its built-in ROM firmware.  This message simply
   means no external patch file is loaded, which is the *desired* state.
+- **ACPI resource warnings** — benign on their own and **not** a sign of a
+  nonfunctional controller:
+  ```
+  hci_uart_bcm serial0-0: Unexpected ACPI gpio_int_idx: -1
+  hci_uart_bcm serial0-0: Unexpected number of ACPI GPIOs: 0
+  hci_uart_bcm serial0-0: No reset resource, using default baud rate
+  ```
+  These appear during normal init; the controller still comes up.
+
+Do **not** try to "fix" the -16 warning by installing the external HCD
+firmware — that makes things *worse* (next section).
+
+### This failure state IS genuinely bad
+
+The following sequence indicates real trouble, not a benign warning —
+`bluetoothctl list` can be empty in this state:
+
+```
+command 0xfc18 tx timeout
+Bluetooth: hci0: BCM: failed to write update baudrate (-110)
+Bluetooth: hci0: BCM: Reset failed (-110)
+```
+
+A Linux → Linux reboot generally brings the controller back healthy.
+See the cold-init caveat below.
 
 ## ⚠️ Do NOT install BCM4350C0 HCD firmware
+
+> Some MacBookPro14,1 hardware-support guides (including the
+> vrilutza/MacBookPro14.1 project this repository's testing borrowed
+> firmware from) **recommend installing this HCD**.  That recommendation is
+> **contradicted by our testing on this machine** — see below.  The
+> BCM4350C0 works from its built-in ROM firmware; the external patch is
+> neither needed nor safe on our tested configuration.
 
 Loading an external `.hcd` patch file **breaks the controller** on this
 machine.  This was tested with the BCM4350C0 firmware from
@@ -81,9 +116,9 @@ a compatible image exists.
 ## HID reconnect fix (BlueZ policy)
 
 Bluetooth itself works reliably on BlueZ 5.87, but a **Logitech M720
-Triathlon** (already paired, bonded and trusted) initially required a manual
-`Connect` after boot.  Adding the HID service UUID to BlueZ's reconnect
-policy fixed automatic reconnection.
+Triathlon** (observed address `C9:B5:B0:4B:C7:19`, already paired, bonded
+and trusted) initially required a manual `Connect` after boot.  Adding the
+HID service UUID to BlueZ's reconnect policy fixed automatic reconnection.
 
 The validated `/etc/bluetooth/main.conf` `[Policy]` configuration:
 
@@ -142,6 +177,38 @@ kernel log lines.  The script is strictly **read-only** — it never unloads
 `hci_uart`, resets the controller, toggles rfkill, modifies ACPI wake
 settings, installs firmware, or restarts Bluetooth (the BCM4350 is
 sensitive to reinitialization).
+
+## Reboot / suspend behavior observed
+
+Bluetooth was exercised across:
+
+- **Linux → Linux reboot** — produced a valid controller despite the benign
+  `-16` baud-rate warning; no macOS boot in between.
+- **suspend → resume** — controller survives; M720 reconnects automatically
+  via the BlueZ policy (see [suspend.md](suspend.md)).
+
+## Cold-init caveat (research / future work)
+
+Earlier in troubleshooting, occasional bad initialization was observed with:
+
+```
+command 0xfc18 tx timeout
+failed to write update baudrate (-110)
+Reset failed (-110)
+```
+
+This is a real edge case, but:
+
+- it is **not** fixed by the external HCD (which makes things worse);
+- current repeated operation is stable enough that **no kernel patch is
+  applied by default**;
+- we do **not** claim this hardware/driver cold-init edge case has been
+  proven impossible forever.
+
+Future investigation direction (clearly **research, not a tested patch**): a
+`hci_bcm` MacBookPro14,1-specific quirk, such as avoiding an early baud-rate
+transition on this controller.  If that direction is ever pursued, it must
+remain opt-in until proven across many boots.
 
 ## What this project deliberately does NOT do
 

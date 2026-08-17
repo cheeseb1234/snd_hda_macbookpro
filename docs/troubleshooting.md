@@ -10,6 +10,7 @@ partitions, the EFI boot configuration, GRUB, or partition tables.
 | Symptom | Check / fix |
 |---|---|
 | No sound after install | `lsmod \| grep cs8409`; re-run `sudo ./scripts/setup-audio.sh`; confirm the module path `/usr/lib/modules/$(uname -r)/updates/dkms/snd-hda-codec-cs8409.ko.zst` |
+| `snd_hda_intel: Primary patch_cs8409 NOT FOUND trying APPLE` in dmesg | **Expected** — benign; the DKMS module still builds and loads |
 | Kernel headers missing | `sudo pacman -S linux-headers` (match `uname -r`) |
 | Build failed | Kernel version vs installer: 6.17+ uses the current script, older uses `install.cirrus.driver.pre617.sh` automatically |
 | Very loud, no volume | You are using `hw:0,0`/`plughw:0,0` — use the default device instead |
@@ -30,8 +31,10 @@ sudo ./scripts/diagnose-bluetooth.sh
 
 | Symptom | Check / fix |
 |---|---|
-| `failed to write update baudrate (-16)` / `Failed to set baudrate` | **Expected** — non-fatal on this machine |
+| `failed to write update baudrate (-16)` / `Failed to set baudrate` | **Expected** — non-fatal *when chip identification continues and `hci0` appears* afterwards |
 | `firmware Patch file not found ... brcm/BCM.hcd` | **Expected** — ROM firmware is the intended state |
+| `hci_uart_bcm serial0-0: Unexpected ACPI gpio_int_idx: -1` / `Unexpected number of ACPI GPIOs: 0` / `No reset resource, using default baud rate` | **Expected** — benign ACPI resource warnings; controller still comes up |
+| `command 0xfc18 tx timeout` / `failed to write update baudrate (-110)` / `Reset failed (-110)` | **Genuinely bad** — `bluetoothctl list` can be empty.  Reboot (Linux→Linux); NOT caused by and NOT fixed by the HCD.  See the cold-init caveat in [bluetooth.md](bluetooth.md) |
 | Controller gone after installing an `.hcd` file | Remove `brcm/BCM.hcd` / `BCM4350C0.hcd` / `BCM2E7C.hcd` from `/usr/lib/firmware/brcm/` and reboot (see [bluetooth.md](bluetooth.md)) |
 | No controller at all | `rfkill list bluetooth` (not blocked), `lsmod \| grep hci_uart`, `systemctl status bluetooth` |
 | Device won't reconnect after boot/resume | Apply the BlueZ policy: `sudo ./scripts/setup-bluetooth.sh` then `sudo systemctl restart bluetooth` |

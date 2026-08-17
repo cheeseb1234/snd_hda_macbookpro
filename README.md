@@ -29,17 +29,17 @@ camera, touchpad and other fixes can be added later.
 
 | Area | Status |
 |---|---|
-| Distro | CachyOS / Arch Linux |
-| Kernel | Stock Arch kernel (DKMS rebuilds per kernel) |
+| Distro | CachyOS (userspace) |
+| Kernel | Stock Arch `linux` **7.1.8-arch1-3** (not `linux-cachyos`); DKMS rebuilds per kernel |
 | BlueZ | 5.87 |
-| Audio driver | Working via DKMS (see [docs/audio.md](docs/audio.md)) |
+| Audio driver | Build/install verified via DKMS; output-device testing not yet documented (see [docs/audio.md](docs/audio.md)) |
 | Bluetooth | Working with ROM firmware + BlueZ policy (see [docs/bluetooth.md](docs/bluetooth.md)) |
 
 ## Hardware support matrix
 
 | Component | Status |
 |---|---|
-| Audio (Cirrus CS8409) | ✅ Working — `snd_hda_macbookpro` DKMS module |
+| Audio (Cirrus CS8409) | ✅ Build/install verified (DKMS) — output-device testing ⏳ TBD |
 | Bluetooth controller (BCM4350C0 UART) | ✅ Working (built-in ROM firmware) |
 | Bluetooth HID reconnect | ✅ Working — BlueZ `[Policy]` fix |
 | Bluetooth suspend/resume | ✅ Working |
@@ -89,8 +89,10 @@ install.cirrus.driver.sh  dkms.conf  dkms.sh  patch_cirrus/  makefiles/  patches
 
 The audio fix is the upstream
 [snd_hda_macbookpro](https://github.com/davidjo/snd_hda_macbookpro) driver,
-installed as a DKMS module.  Validated on CachyOS/Arch with the stock
-kernel.
+installed as a DKMS module.  **Verified:** DKMS build/install succeeds on
+CachyOS with the stock Arch `linux` kernel `7.1.8-arch1-3`; the module
+loads into the running kernel.  (Speaker/mic/headphone output testing is
+not yet documented — see [docs/audio.md](docs/audio.md).)
 
 ```bash
 sudo pacman -S --needed dkms gcc linux-headers make patch wget git
@@ -153,10 +155,18 @@ Details: [docs/suspend.md](docs/suspend.md).
 
 ## Known limitations
 
+- Audio hardware-output testing (speaker / microphone / headphone jack /
+  audio quality) is **not yet documented** — only DKMS build/install is
+  verified so far.
 - Bluetooth wake-from-suspend is intentionally disabled (enabling it made
   the mouse drop its connection across suspend).
 - External BCM4350C0 HCD firmware currently breaks the controller — ROM
   firmware only, until a compatible image is proven.
+- A rare Bluetooth cold-init edge case (`command 0xfc18 tx timeout` /
+  `BCM: Reset failed (-110)` — `bluetoothctl list` can be empty) has been
+  seen occasionally.  No kernel patch is applied by default; a possible
+  future research direction is an `hci_bcm` MacBookPro14,1-specific quirk
+  (see [docs/bluetooth.md](docs/bluetooth.md)).
 - Audio recording level is low (same as macOS); amplification recommended.
 - Direct hardware ALSA devices (`hw:0,0`) have no volume control.
 - Wi-Fi optimization, FaceTime camera support and touchpad tuning are not

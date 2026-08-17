@@ -12,10 +12,11 @@ unchanged, in the repository root.  The install scripts, DKMS metadata and
 `patch_cirrus/` sources are the upstream project's files — this repository
 only adds MacBookPro14,1 documentation and convenience wrappers around them.
 
-## Known working configuration
+## Verified installation
 
-Validated on **CachyOS / Arch Linux with the stock Arch kernel** using the
-DKMS install path.
+Validated on **CachyOS with the stock Arch `linux` kernel** (not
+`linux-cachyos`).  DKMS build/install verified on kernel
+**`7.1.8-arch1-3`**.
 
 Example successful install (from the repository root):
 
@@ -34,14 +35,68 @@ sudo ./scripts/setup-audio.sh -r      # remove the DKMS module
 ```
 
 The DKMS module installs as `snd_hda_codec_cs8409` (module file
-`snd-hda-codec-cs8409.ko.zst`), e.g.:
+`snd-hda-codec-cs8409.ko.zst`).  Verified installed path on
+`7.1.8-arch1-3`:
 
 ```
-/usr/lib/modules/<kernel>/updates/dkms/snd-hda-codec-cs8409.ko.zst
+/usr/lib/modules/7.1.8-arch1-3/updates/dkms/snd-hda-codec-cs8409.ko.zst
 ```
 
 DKMS rebuilds the module automatically for every kernel you install, so a
 kernel update does not require re-running the installer.
+
+### DKMS module-location note
+
+`dkms.conf` in the current upstream source (and therefore in this fork)
+already contains the correct:
+
+```
+BUILT_MODULE_LOCATION[0]="build/hda/codecs/cirrus"
+```
+
+An older/wrong value was `build/hda`.  This fork ships the current upstream
+file — verified present — so **no code change is needed** to "fix" this;
+the correction only matters for very old forks/patches.  On the installed
+system, the DKMS project directory uses the underscore form:
+
+```
+/var/lib/dkms/snd_hda_macbookpro/0.1/source/dkms.conf
+```
+
+### Benign kernel message
+
+During initialization the kernel may log:
+
+```
+snd_hda_intel: Primary patch_cs8409 NOT FOUND trying APPLE
+```
+
+This is **not** a fatal failure.  The DKMS `cs8409` module was
+successfully built, installed and loaded during testing despite this line.
+
+## Verification commands
+
+```bash
+dkms status                                          # module + version listed
+modinfo snd_hda_codec_cs8409 | grep -E 'filename|vermagic'
+wpctl status                                         # PipeWire sees the device
+sudo dmesg | grep -iE 'cs8409|cirrus|hdaudio|snd_hda' | tail -80
+```
+
+## What is verified here (and what is not)
+
+Keep the claims precise:
+
+- ✅ **Build/install verified:** DKMS install succeeds on stock Arch kernel
+  `7.1.8-arch1-3`; `snd_hda_codec_cs8409` is installed; the driver is
+  present in the running module stack.
+- ⏳ **Not yet documented:** speaker, microphone, headphone-jack and audio
+  quality testing on this machine.  This project does **not** claim those
+  have been verified until actual output-device testing is recorded.
+
+The driver capabilities described below are inherited from the upstream
+project's documentation (davidjo/snd_hda_macbookpro), not from testing
+performed in this fork.
 
 ## Verify it works
 

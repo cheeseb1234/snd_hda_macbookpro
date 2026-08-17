@@ -4,7 +4,10 @@
 
 The preferred sleep state on this machine is **deep** (`s2idle [deep]` in
 `/sys/power/mem_sleep`).  Deep sleep works correctly and is the default —
-**do not** switch the machine to s2idle as a permanent setting.
+**do not** switch the machine to s2idle as a permanent setting.  s2idle was
+tried during testing but is unnecessary: keyboard/trackpad wake already
+works with deep, so deep stays preferred for lower suspend power
+consumption.
 
 Check the current state:
 
