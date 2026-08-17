@@ -64,10 +64,14 @@ die() {
 	exit 1
 }
 
+# capture the original arguments BEFORE the parsing loop consumes them,
+# so the sudo re-exec below can pass them through unchanged
+ORIG_ARGS=("$@")
+
 require_root() {
 	if [ "$(id -u)" -ne 0 ]; then
 		if command -v sudo >/dev/null 2>&1; then
-			exec sudo "$0" "$@"
+			exec sudo "$0" "${ORIG_ARGS[@]}"
 		fi
 		die "this script must run as root (no sudo found)"
 	fi

@@ -47,6 +47,28 @@ The kernel log lines that matter (from `journalctl -k -b` or
 - Healthy (non-fatal): the -16 baudrate and missing-`BCM.hcd` lines
 - Bad: `Patch command 4c01 failed (-110)`, `Reading local version info failed (-110)` — an external HCD was loaded; remove it
 
+## Wi-Fi
+
+| Symptom | Check / fix |
+|---|---|
+| No `wlan0` after boot | `lspci -nnk -s 02:00.0` must show `Kernel driver in use: brcmfmac`; `rfkill list wifi`; verify the NVRAM files and `4350c2` symlinks via `sudo ./scripts/setup-wifi.sh --status` |
+| `no clm_blob available (err=-2)` / `no txcap_blob available (err=-2)` | **Expected** — harmless; not claimed as fixed (see [wifi.md](wifi.md)) |
+| Power saving still on | `iw dev wlan0 get power_save`; re-apply `sudo ./scripts/setup-wifi.sh` (writes the NetworkManager conf) |
+| Roaming not working / a guide says `roamoff=1` | Roaming is validated on this machine — do **not** set `roamoff=1`; remove it if present (`grep -r roamoff /etc/modprobe.d/`) |
+| NVRAM download failed during setup | Follow the manual instructions printed by `setup-wifi.sh`; source is vrilutza/MacBookPro14.1 (credited) |
+| `MMIO read failed: 0xffffffff` / recurring probe failures / `flowring ... timed out waiting for txstatus` | **Not** seen during validation — if they appear, capture `journalctl -k -b \| grep -iE 'brcmfmac|MMIO|4350|flowring|txstatus'` and report |
+
+## Camera (facetimehd)
+
+| Symptom | Check / fix |
+|---|---|
+| No `/dev/video0` | `lsmod \| grep facetimehd`; `dkms status` (installed for the running kernel); firmware exists (`ls -l /usr/lib/firmware/facetimehd/firmware.bin`); then `sudo modprobe facetimehd` |
+| `facetimehd: loading out-of-tree module taints kernel` / `module verification failed: signature and/or required key missing` | **Expected** for the unsigned DKMS module — not a camera failure |
+| `Failed to lock S2 PLL: 0xc902c902` during resume | **Observed non-fatal** on the validated machine — reinit completes (`DDR40 PHY PLL locked`, `Loaded firmware`), video works.  Not guaranteed universal; capture the full resume log if yours does not recover |
+| AUR packages missing | Build `facetimehd-firmware` + `facetimehd-dkms-git` as your normal user (see [camera.md](camera.md)) — never `makepkg` as root |
+| Poor image quality | Optional: install `facetimehd-data` (calibration) — was **not** needed on the validated machine |
+| Camera worked, stopped after resume | Check the S2 PLL context in `journalctl -k`; on the validated machine live video continued to work |
+
 ## Suspend / resume
 
 | Symptom | Check / fix |
@@ -61,6 +83,7 @@ When reporting an issue, attach the output of:
 
 ```bash
 sudo ./scripts/diagnose-bluetooth.sh      # Bluetooth + ACPI + kernel log
-lsmod | grep -E 'cs8409|hci_uart|btbcm'   # audio + BT modules
+sudo ./scripts/diagnose-hardware.sh       # Wi-Fi + camera + kernel log
+lsmod | grep -E 'cs8409|hci_uart|btbcm|brcmfmac|facetimehd'   # relevant modules
 journalctl -b -p 3                        # errors from this boot
 ```
